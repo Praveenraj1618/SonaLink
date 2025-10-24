@@ -59,15 +59,15 @@
       open: true,
       proxy: {
         '/auth': {
-          target: 'http://localhost:4000',
+          target: 'http://localhost:3001',
           changeOrigin: true,
         },
         '/courses': {
-          target: 'http://localhost:4000',
+          target: 'http://localhost:3001',
           changeOrigin: true,
         },
         '/materials': {
-          target: 'http://localhost:4000',
+          target: 'http://localhost:3001',
           changeOrigin: true,
         },
       },
