@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from './types';
-import { mockUser } from './mock-data';
+import { apiFetch } from './api';
 
 interface AuthContextType {
   user: User | null;
@@ -28,25 +28,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Mock API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Simulate successful login
-    const userData = { ...mockUser, email };
-    setUser(userData);
+    const { token, user } = await apiFetch<{ token: string; user: User }>(
+      '/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      }
+    );
+    setUser(user);
     setIsAuthenticated(true);
-    localStorage.setItem('sonalink_auth', JSON.stringify({ user: userData }));
+    localStorage.setItem('sonalink_auth', JSON.stringify({ user, token }));
   };
 
   const signup = async (name: string, email: string, password: string) => {
-    // Mock API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Simulate successful signup
-    const userData = { ...mockUser, name, email };
-    setUser(userData);
-    setIsAuthenticated(true);
-    localStorage.setItem('sonalink_auth', JSON.stringify({ user: userData }));
+    await apiFetch<{ message: string; user_id: number }>(
+      '/auth/signup',
+      {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password }),
+      }
+    );
+    // After signup, simulate login for demo
+    await login(email, password);
   };
 
   const logout = () => {

@@ -57,5 +57,19 @@
     server: {
       port: 3000,
       open: true,
+      proxy: {
+        '/auth': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+        },
+        '/courses': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+        },
+        '/materials': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+        },
+      },
     },
   });

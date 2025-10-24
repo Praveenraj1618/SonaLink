@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Filter, Grid, List, Plus, Upload as UploadIcon } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -23,7 +23,8 @@ import { Textarea } from '../../components/ui/textarea';
 import { MaterialCard } from '../../components/material-card';
 import { EmptyState } from '../../components/empty-state';
 import { UploadDropzone } from '../../components/upload-dropzone';
-import { mockMaterials } from '../../lib/mock-data';
+import { PaginatedResponse, Material } from '../../lib/types';
+import { apiFetch, apiForm } from '../../lib/api';
 import { toast } from 'sonner@2.0.3';
 
 interface MaterialsTabProps {
@@ -43,16 +44,31 @@ export function MaterialsTab({ courseId, onNavigate }: MaterialsTabProps) {
     tags: '',
     file: null as File | null
   });
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const courseMaterials = mockMaterials.filter(m => m.course_id === courseId);
+  useEffect(() => {
+    const fetchMaterials = async () => {
+      setIsLoading(true);
+      try {
+        const resp = await apiFetch<PaginatedResponse<Material>>(
+          `/courses/${courseId}/materials?sort=${sortBy}`
+        );
+        setMaterials(resp.items);
+      } catch (e) {
+        // noop for demo
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMaterials();
+  }, [courseId, sortBy]);
   
   // Get all unique tags
-  const allTags = Array.from(
-    new Set(courseMaterials.flatMap(m => m.tags))
-  );
+  const allTags = Array.from(new Set(materials.flatMap(m => m.tags)));
 
   // Filter materials
-  const filteredMaterials = courseMaterials.filter(material => {
+  const filteredMaterials = materials.filter(material => {
     const matchesSearch = material.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          material.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTags = selectedTags.length === 0 || 
@@ -80,20 +96,39 @@ export function MaterialsTab({ courseId, onNavigate }: MaterialsTabProps) {
     );
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!uploadForm.title || !uploadForm.file) {
       toast.error('Please fill in required fields');
       return;
     }
 
-    // Simulate upload
-    toast.success('Material uploaded successfully!');
-    setShowUploadModal(false);
-    setUploadForm({ title: '', description: '', tags: '', file: null });
+    try {
+      const form = new FormData();
+      form.append('title', uploadForm.title);
+      if (uploadForm.description) form.append('description', uploadForm.description);
+      if (uploadForm.tags) form.append('tags', uploadForm.tags);
+      form.append('file', uploadForm.file);
+      const resp = await apiForm<{ material: Material }>(`/courses/${courseId}/materials`, form);
+      setMaterials(prev => [resp.material, ...prev]);
+      toast.success('Material uploaded successfully!');
+      setShowUploadModal(false);
+      setUploadForm({ title: '', description: '', tags: '', file: null });
+    } catch (e) {
+      toast.error('Upload failed');
+    }
   };
 
-  const handleUpvote = (materialId: number) => {
-    toast.success('Upvoted!');
+  const handleUpvote = async (materialId: number) => {
+    try {
+      const resp = await apiFetch<{ upvotes: number; user_voted: boolean }>(
+        `/materials/${materialId}/upvote`,
+        { method: 'POST' }
+      );
+      setMaterials(prev => prev.map(m => (m.id === materialId ? { ...m, upvotes: resp.upvotes } : m)));
+      toast.success('Upvoted!');
+    } catch (e) {
+      toast.error('Failed to upvote');
+    }
   };
 
   return (
@@ -249,7 +284,9 @@ export function MaterialsTab({ courseId, onNavigate }: MaterialsTabProps) {
       </div>
 
       {/* Materials Grid/List */}
-      {sortedMaterials.length > 0 ? (
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">Loading materials...</div>
+      ) : sortedMaterials.length > 0 ? (
         <div className={viewMode === 'grid' ? 'grid md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-4'}>
           {sortedMaterials.map((material) => (
             <MaterialCard

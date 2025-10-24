@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ThumbsUp, Download, MessageSquare, Share2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -7,8 +7,8 @@ import { Badge } from '../../components/ui/badge';
 import { Separator } from '../../components/ui/separator';
 import { Textarea } from '../../components/ui/textarea';
 import { PDFPreview } from '../../components/pdf-preview';
-import { mockMaterials } from '../../lib/mock-data';
-import { Comment } from '../../lib/types';
+import { Comment, Material } from '../../lib/types';
+import { apiFetch } from '../../lib/api';
 import { toast } from 'sonner@2.0.3';
 
 interface MaterialDetailPageProps {
@@ -18,26 +18,33 @@ interface MaterialDetailPageProps {
 }
 
 export function MaterialDetailPage({ courseId, materialId, onNavigate }: MaterialDetailPageProps) {
-  const material = mockMaterials.find(m => m.id === materialId);
-  
-  const [upvotes, setUpvotes] = useState(material?.upvotes || 0);
+  const [material, setMaterial] = useState<Material | null>(null);
+  const [upvotes, setUpvotes] = useState(0);
   const [hasUpvoted, setHasUpvoted] = useState(false);
   const [isUpvoting, setIsUpvoting] = useState(false);
-  const [downloads, setDownloads] = useState(material?.downloads || 0);
+  const [downloads, setDownloads] = useState(0);
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: 1,
-      body: 'Really helpful notes! Thanks for sharing.',
-      user: { id: 2, name: 'Priya S', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya' },
-      created_at: '2025-10-15T10:30:00Z'
-    }
-  ]);
+  const [comments, setComments] = useState<Comment[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const resp = await apiFetch<Material & { comments: Comment[] }>(`/materials/${materialId}`);
+        setMaterial(resp);
+        setUpvotes(resp.upvotes);
+        setDownloads(resp.downloads);
+        setComments(resp.comments);
+      } catch (e) {
+        // noop
+      }
+    };
+    load();
+  }, [materialId]);
 
   if (!material) {
     return (
       <div className="p-6">
-        <p>Material not found</p>
+        <p>Loading material...</p>
         <Button onClick={() => onNavigate(`course/${courseId}/materials`)}>
           Back to Materials
         </Button>
@@ -58,18 +65,8 @@ export function MaterialDetailPage({ courseId, materialId, onNavigate }: Materia
     setUpvotes(hasUpvoted ? upvotes - 1 : upvotes + 1);
 
     try {
-      // Simulate API call: POST /materials/:id/upvote
-      await new Promise((resolve, reject) => {
-        setTimeout(() => {
-          // Mock 90% success rate
-          if (Math.random() > 0.1) {
-            resolve(true);
-          } else {
-            reject(new Error('Failed to upvote'));
-          }
-        }, 300);
-      });
-      
+      const resp = await apiFetch<{ upvotes: number; user_voted: boolean }>(`/materials/${materialId}/upvote`, { method: 'POST' });
+      setUpvotes(resp.upvotes);
       toast.success(hasUpvoted ? 'Upvote removed' : 'Upvoted!');
     } catch (error) {
       // Rollback on error
